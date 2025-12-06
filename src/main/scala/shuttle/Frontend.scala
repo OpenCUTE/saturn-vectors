@@ -35,7 +35,7 @@ class SaturnShuttleFrontend(sgSize: Option[BigInt], edge: TLEdge)(implicit p: Pa
   val replayed = RegInit(false.B)
 
   pfc.io.sg_base            := io.sg_base
-  pfc.io.s0.in.valid        := io.core.ex.valid && !ifc.io.busy && !(replayed && !io.issue.ready)
+  pfc.io.s0.in.valid        := io.core.ex.valid && !ifc.io.busy && !(replayed && !io.issue.ready) //ifc工作时，pfc就无法工作
   pfc.io.s0.in.bits.inst    := io.core.ex.uop.inst
   pfc.io.s0.in.bits.pc      := io.core.ex.uop.pc
   pfc.io.s0.in.bits.status  := io.core.status
@@ -44,7 +44,7 @@ class SaturnShuttleFrontend(sgSize: Option[BigInt], edge: TLEdge)(implicit p: Pa
   pfc.io.s0.in.bits.rs1     := io.core.ex.uop.rs1_data
   pfc.io.s0.in.bits.rs2     := io.core.ex.uop.rs2_data
   pfc.io.s0.in.bits.phys    := !(io.core.status.dprv <= PRV.S.U && io.core.satp.mode(io.core.satp.mode.getWidth-1))
-  io.core.ex.ready          := !ifc.io.busy && !(replayed && !io.issue.ready)
+  io.core.ex.ready          := !ifc.io.busy && !(replayed && !io.issue.ready) //等待ifc和前序指令ready，且issue也就绪，分发堵了，发射也堵。io.issue.ready等于dispatch的ready，等于
 
   pfc.io.s1.rs1.valid := pfc.io.s1.inst.isOpf && !pfc.io.s1.inst.vmu
   pfc.io.s1.rs1.bits := io.core.mem.frs1
@@ -71,14 +71,14 @@ class SaturnShuttleFrontend(sgSize: Option[BigInt], edge: TLEdge)(implicit p: Pa
 
   pfc.io.s2.scalar_store_pending := io.core.wb.store_pending
 
-  io.core.wb.retire_late  := ifc.io.retire
+  io.core.wb.retire_late  := ifc.io.retire //retire，才可以从cpu那里把指令卸载掉
   io.core.wb.inst         := Mux(ifc.io.busy, ifc.io.inst.bits      , pfc.io.s2.inst.bits.bits)
   io.core.wb.pc           := Mux(ifc.io.busy, ifc.io.pc             , pfc.io.s2.pc)
   io.core.wb.xcpt         := Mux(ifc.io.busy, ifc.io.xcpt.valid     , pfc.io.s2.xcpt.valid)
   io.core.wb.cause        := Mux(ifc.io.busy, ifc.io.xcpt.bits.cause, pfc.io.s2.xcpt.bits.cause)
   io.core.wb.tval         := Mux(ifc.io.busy, ifc.io.xcpt.bits.tval , pfc.io.s2.xcpt.bits.tval)
-  io.core.wb.internal_replay  := pfc.io.s2.internal_replay.valid
-  io.core.wb.block_all        := ifc.io.busy || (pfc.io.s2.inst.valid && !pfc.io.s2.retire && !pfc.io.s2.internal_replay.valid)
+  io.core.wb.internal_replay  := pfc.io.s2.internal_replay.valid //需要进入ifc
+  io.core.wb.block_all        := ifc.io.busy || (pfc.io.s2.inst.valid && !pfc.io.s2.retire && !pfc.io.s2.internal_replay.valid) //retire，才可以从cpu那里把指令卸载掉，需要两个页，但是
   io.core.wb.rob_should_wb    := Mux(ifc.io.busy, ifc.io.inst.writes_xrf, pfc.io.s2.inst.bits.writes_xrf)
   io.core.wb.rob_should_wb_fp := Mux(ifc.io.busy, ifc.io.inst.writes_frf, pfc.io.s2.inst.bits.writes_frf)
   io.core.set_vstart  := Mux(ifc.io.busy, ifc.io.vstart, pfc.io.s2.vstart)
@@ -90,9 +90,10 @@ class SaturnShuttleFrontend(sgSize: Option[BigInt], edge: TLEdge)(implicit p: Pa
   when (!io.issue.ready && pfc.io.s2.inst.valid) { replayed := true.B }
   when (io.issue.ready) { replayed := false.B }
 
-  io.issue.valid := Mux(ifc.io.busy, ifc.io.issue.valid, pfc.io.s2.issue.valid)
-  io.issue.bits  := Mux(ifc.io.busy, ifc.io.issue.bits , pfc.io.s2.issue.bits)
-  ifc.io.issue.ready    := io.issue.ready
+  io.issue.valid := Mux(ifc.io.busy, ifc.io.issue.valid, pfc.io.s2.issue.valid) //
+  io.issue.bits  := Mux(ifc.io.busy, ifc.io.issue.bits , pfc.io.s2.issue.bits)  //发射的指令，
+  io.issue.bits.tensor_last_mem_submop := io.issue.bits.isOpm && ((ifc.io.retire && ifc.io.busy && ifc.io.issue.valid) || (pfc.io.s2.retire && !ifc.io.busy && pfc.io.s2.inst.valid)) //issue的inst 要么是pfc来的要么是ifc来的，那这条指令就需要被tensor跟踪。
+  ifc.io.issue.ready    := io.issue.ready //dis直接给的信号
   pfc.io.s2.issue.ready := !ifc.io.busy && io.issue.ready
 
   io.core.trap_check_busy := pfc.io.busy || ifc.io.busy

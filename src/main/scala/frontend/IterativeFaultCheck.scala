@@ -274,9 +274,9 @@ class IterativeFaultCheck(implicit p: Parameters) extends CoreModule()(p) with H
       s1_kill := true.B
       im_access.io.flush := true.B
     } .elsewhen ((s2_eidx +& 1.U) === inst.vconfig.vl && (s2_seg_hi || s2_seg_single_page || inst.seg_nf === 0.U)) {
-      valid := false.B
+      valid := false.B //当拍ifc还是busy，下一拍ifc就不是busy了
       replay_kill := true.B
-      io.retire := true.B
+      io.retire := true.B //且io.issue.valid,那这条指令就是ifc发出的最后拆分的向量指令
       io.vstart.valid := true.B
       io.vstart.bits := 0.U
       im_access.io.flush := true.B

@@ -22,6 +22,8 @@ class VectorDispatcher(implicit p: Parameters) extends CoreModule()(p) with HasV
     val vat_release = Input(Vec(nRelease, Valid(UInt(vParams.vatSz.W))))
     val vat_head = Output(UInt(vParams.vatSz.W))
     val vat_tail = Output(UInt(vParams.vatSz.W))
+    val vat_head_incr = Output(Bool())
+    val tensor_block = Input(Bool())
   })
 
   val debug_id_ctr = RegInit(0.U(debugIdSz.W))
@@ -33,6 +35,7 @@ class VectorDispatcher(implicit p: Parameters) extends CoreModule()(p) with HasV
   val vat_available_count = PopCount(~vat_valids.asUInt)
   val vat_head_incr = WireInit(false.B)
 
+  io.vat_head_incr := vat_head_incr
   when (vat_head_incr) {
     vat_head := vat_head + 1.U
   }
@@ -48,7 +51,7 @@ class VectorDispatcher(implicit p: Parameters) extends CoreModule()(p) with HasV
     vat_head_incr := true.B
   }
 
-  val issue_inst = WireInit(io.issue.bits)
+  val issue_inst = WireInit(io.issue.bits) //io.issue的指令就是当拍的io.dis的指令
   issue_inst.vat := vat_tail
   issue_inst.debug_id := debug_id_ctr
 
@@ -61,9 +64,9 @@ class VectorDispatcher(implicit p: Parameters) extends CoreModule()(p) with HasV
   val hwacha_block = hwacha_limiter.map(_.io.block).getOrElse(false.B)
 
 
-  io.issue.ready := vat_available && io.dis.ready   && (!issue_inst.vmu || io.mem.ready) && !hwacha_block
-  io.dis.valid   := vat_available && io.issue.valid && (!issue_inst.vmu || io.mem.ready) && !hwacha_block
-  io.mem.valid   := vat_available && io.issue.valid && io.dis.ready && issue_inst.vmu    && !hwacha_block
+  io.issue.ready := vat_available && io.dis.ready   && (!issue_inst.vmu || io.mem.ready) && !hwacha_block && !io.tensor_block //根据tensor_wait指令定序，需要一个tensor_wait_ready的信号
+  io.dis.valid   := vat_available && io.issue.valid && (!issue_inst.vmu || io.mem.ready) && !hwacha_block && !io.tensor_block //根据tensor_wait指令定序，需要一个tensor_wait_ready的信号
+  io.mem.valid   := vat_available && io.issue.valid && io.dis.ready && issue_inst.vmu    && !hwacha_block && !io.tensor_block //根据tensor_wait指令定序，需要一个tensor_wait_ready的信号
 
   io.vat_tail := vat_tail
   io.vat_head := vat_head

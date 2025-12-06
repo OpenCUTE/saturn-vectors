@@ -33,7 +33,23 @@ object VectorParams {
     vrfBanking = 4,
     issStructure = VectorIssueStructure.Shared
   )
-
+  def CUTErefParams = minParams.copy(
+    vlrobEntries = 16,
+    vlissqEntries = 16,
+    vsissqEntries = 16,
+    vxissqEntries = 16,
+    vpissqEntries = 16,
+    vlifqEntries= 16,
+    vsifqEntries= 16,
+    vliqEntries = 16,
+    vsiqEntries = 16,
+    vatSz = 5,
+    useSegmentedIMul = true,
+    doubleBufferSegments = true,
+    useScalarFPFMA = false,
+    vrfBanking = 4,
+    issStructure = VectorIssueStructure.Shared
+  )
   // dspParams
   // For a wide high-performance vector unit with multi-issue
   def dspParams = refParams.copy(
@@ -346,6 +362,7 @@ case class VectorParams(
   enableScalarVectorAddrDisambiguation: Boolean = true,
 
   doubleBufferSegments: Boolean = false,
+  bufferStdata: Boolean = false, // adds a buffer between the backend and store segmenter
 
   vrfBanking: Int = 2,
   vrfHiccupBuffer: Boolean = true,

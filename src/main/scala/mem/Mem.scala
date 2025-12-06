@@ -179,7 +179,7 @@ class VectorMemUnit(sgSize: Option[BigInt] = None)(implicit p: Parameters) exten
   }
   when (liq_lss_fire) {
     ptrIncr(liq_lss_ptr, vParams.vliqEntries)
-    liq_valids(liq_lss_ptr) := false.B
+    liq_valids(liq_lss_ptr) := false.B //完成load的所有任务
     assert(liq_las(liq_lss_ptr) || (liq_lss_ptr === liq_las_ptr && liq_las_fire))
   }
 
@@ -331,7 +331,7 @@ class VectorMemUnit(sgSize: Option[BigInt] = None)(implicit p: Parameters) exten
   sss.io.op := siq(siq_sss_ptr).op
   scu.io.push <> sss.io.compactor
   scu.io.push_data := sss.io.compactor_data
-  sss.io.stdata <> io.vu.sdata
+  sss.io.stdata <> Queue(io.vu.sdata, if (vParams.bufferStdata) 1 else 0)
   siq_sss_fire := sss.io.done
 
   // Store address sequencing
@@ -396,7 +396,7 @@ class VectorMemUnit(sgSize: Option[BigInt] = None)(implicit p: Parameters) exten
     }
   }
 
-  store_rob.io.push.valid := io.dmem.store_ack.valid
+  store_rob.io.push.valid := io.dmem.store_ack.valid //这里直接就L2的 store_ack回来了
   store_rob.io.push.bits.tag := io.dmem.store_ack.bits.tag
   store_rob.io.push.bits.data := DontCare
 

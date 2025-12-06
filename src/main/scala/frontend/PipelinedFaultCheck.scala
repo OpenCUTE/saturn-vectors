@@ -32,6 +32,7 @@ class PipelinedFaultCheck(edge: TLEdge, sgSize: Option[BigInt])(implicit p: Para
         val rs1 = UInt(xLen.W)
         val rs2 = UInt(xLen.W)
         val phys = Bool()
+        // val inst_tensor_vat_id = UInt(vParams.vatSz.W)
       }))
       val tlb_req = Valid(new TLBReq(3))
     }
@@ -75,13 +76,20 @@ class PipelinedFaultCheck(edge: TLEdge, sgSize: Option[BigInt])(implicit p: Para
   s0_inst.segend   := s0_inst.seg_nf
   s0_inst.rs1_data := io.s0.in.bits.rs1
   s0_inst.rs2_data := io.s0.in.bits.rs2
-  s0_inst.emul     := Mux(io.s0.in.bits.vconfig.vtype.vlmul_sign, 0.U, io.s0.in.bits.vconfig.vtype.vlmul_mag)
+  val base_mul = Mux(io.s0.in.bits.vconfig.vtype.vlmul_sign, 0.U, io.s0.in.bits.vconfig.vtype.vlmul_mag)
+  val adj_mul = base_mul +& Mux(s0_inst.vmu && s0_inst.mem_elem_size > io.s0.in.bits.vconfig.vtype.vsew,
+    s0_inst.mem_elem_size - io.s0.in.bits.vconfig.vtype.vsew,
+    0.U
+  )
+  s0_inst.emul     := Mux(adj_mul > 3.U, 3.U, adj_mul)
   s0_inst.page     := DontCare
   s0_inst.vat      := DontCare
   s0_inst.debug_id := DontCare
   s0_inst.rm       := DontCare
   s0_inst.fast_sg  := false.B
   s0_inst.mop      := s0_inst.orig_mop
+  // s0_inst.tensor_vat_id := io.s0.in.bits.inst_tensor_vat_id
+  s0_inst.tensor_last_mem_submop := false.B //默认是可通过的访存指令
   s0_inst.fission_vl.valid := false.B // set in s2
   s0_inst.fission_vl.bits := DontCare
   when (s0_inst.vmu && s0_inst.mop === mopUnit) {
@@ -175,7 +183,7 @@ class PipelinedFaultCheck(edge: TLEdge, sgSize: Option[BigInt])(implicit p: Para
 
   // masked checks, even in the fast case, need to
   // to to ITC to get the precise element+address of the fault
-  when (s2_inst.vmu && s2_xcpt && !s2_inst.vm) {
+  when (s2_inst.vmu && s2_xcpt && !s2_inst.vm) {//发生异常！
     s2_go_to_itc := true.B
     s2_generate_xcpt := false.B
   }
@@ -205,7 +213,7 @@ class PipelinedFaultCheck(edge: TLEdge, sgSize: Option[BigInt])(implicit p: Para
   io.s2.issue.bits.fission_vl.bits := s2_inst.vstart +& consumed
 
   when (s2_valid) {
-    when (!io.s2.issue.ready || (io.s2.scalar_store_pending && s2_inst.vmu)) {
+    when (!io.s2.issue.ready || (io.s2.scalar_store_pending && s2_inst.vmu)) {//vector的issue堵，则core的wb也堵，无法commit
       io.s2.replay := true.B
     } .elsewhen (s2_inst.vstart =/= 0.U && !s2_inst.vmu) {
       io.s2.xcpt.valid := true.B

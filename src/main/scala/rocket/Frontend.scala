@@ -17,6 +17,7 @@ import saturn.frontend.{PipelinedFaultCheck, IterativeFaultCheck}
 class SaturnRocketFrontend(edge: TLEdge)(implicit p: Parameters) extends CoreModule()(p) with HasVectorParams {
   val io = IO(new Bundle {
     val core = new VectorCoreIO
+    // val inst_tensor_vat_id = Input(UInt(vParams.vatSz.W))
     val tlb = Flipped(new DCacheTLBPort)
 
     val issue = Decoupled(new VectorIssueInst)
@@ -39,6 +40,7 @@ class SaturnRocketFrontend(edge: TLEdge)(implicit p: Parameters) extends CoreMod
   pfc.io.s0.in.bits.vstart  := io.core.ex.vstart
   pfc.io.s0.in.bits.rs1     := io.core.ex.rs1
   pfc.io.s0.in.bits.rs2     := io.core.ex.rs2
+  // pfc.io.s0.in.bits.inst_tensor_vat_id := io.inst_tensor_vat_id
   pfc.io.s0.in.bits.phys    := false.B
   io.core.ex.ready          := !ifc.io.busy
 

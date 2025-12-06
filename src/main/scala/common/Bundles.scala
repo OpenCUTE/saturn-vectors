@@ -12,6 +12,7 @@ import saturn.insns.{HasVectorDecoderSignals}
 // Per-instruction bundle in the VLSU
 class VectorMemMacroOp(implicit p: Parameters) extends CoreBundle()(p) with HasVectorParams {
   val debug_id = UInt(debugIdSz.W)
+  // val tensor_age_id =
 
   val base_offset = UInt(pgIdxBits.W)
   val page        = UInt((paddrBits - pgIdxBits).W)
@@ -56,6 +57,8 @@ class VectorIssueInst(implicit p: Parameters) extends CoreBundle()(p) with HasVe
   val fast_sg = Bool()
   val debug_id = UInt(debugIdSz.W)
   val mop = UInt(2.W) // stored separately from bits since dispatch may need to set this
+  // val tensor_vat_id = UInt(vParams.vatSz.W)
+  val tensor_last_mem_submop = Bool() //针对retire的指令，这些指令当tensor_last_mem_submop为true时，这条指令的inst-->issue inst已经完成，这条访存指令将完成写回和提交，正式发射到访存流水线，访存流水线也是顺序发射的，直到这条指令在访存发射队列里退休，那这条指令就彻底完成了
 
   def opcode = bits(6,0)
   def store = opcode(5)

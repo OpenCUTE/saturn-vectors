@@ -44,16 +44,19 @@ class SaturnShuttleUnit(implicit p: Parameters) extends ShuttleVectorUnit()(p) w
       sg.module.io.vec <> vmu.io.sgmem.get
     }
 
-    dis.io.issue <> vfu.io.issue
+    dis.io.issue <> vfu.io.issue //所有issue的指令都在这里，当某条访存指令的最后一个mop发射，这条指令也完成了退休，和其他的rocc等指令也是同步抵达张量模块。
     vfu.io.core <> io
     vfu.io.sg_base := io_sg_base
 
     vu.io.index_access <> vfu.io.index_access
     vu.io.mask_access <> vfu.io.mask_access
-    vu.io.vmu <> vmu.io.vu
-    vu.io.vat_tail := dis.io.vat_tail
-    vu.io.vat_head := dis.io.vat_head
-    vu.io.dis <> dis.io.dis
+    vu.io.vmu <> vmu.io.vu //这里把load和store相关的线连到vmu去了
+    vu.io.vat_tail := dis.io.vat_tail//新增一条指令，这个就+1，用这个追标记的访存指令
+    vu.io.vat_head := dis.io.vat_head//得追这个，这个每次最多+1，每完成一条指令，这个就移，标注好tensor关注的tail，等tail过了，flag就过了。
+    vu.io.dis <> dis.io.dis //这个dis.io.dis.ready能够控制前端所有指令进入vu和vmu
+    //只需要把dis.io.dis.fire 拿到数据，然后接到外部的总控制单元，每周期根据realease来释放对应的flag指令。
+    //另外还需要一组和cutev3进行控制交互的线束组用来控制dis的ready
+    dis.io.tensor_block := false.B
     dis.io.vat_release := vu.io.vat_release
     vmu.io.enq <> dis.io.mem
 

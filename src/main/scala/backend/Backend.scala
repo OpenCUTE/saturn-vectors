@@ -164,7 +164,7 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
   // Connect VDQ to issue queues
   // Connect issue queues to sequencers
 
-  val issq_stall = Wire(Vec(issGroups.size, Bool()))
+  val issq_stall = Wire(Vec(issGroups.size, Bool()))//这里直接堵所有指令，加一个isssq_stall，从外面接进来的线就好了，直接不让dispatch就好了
   vdq.io.deq.ready := !issq_stall.orR
 
   var flat_vxu_id: Int = 0
@@ -361,10 +361,10 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
 
 
   io.vmu.lresp.ready := vls.io.iss.valid && load_write.ready
-  vls.io.iss.ready := io.vmu.lresp.valid && load_write.ready
+  vls.io.iss.ready := io.vmu.lresp.valid && load_write.ready //vmu完成了从访存拿回数
   load_write.valid := vls.io.iss.valid && io.vmu.lresp.valid
   load_write.bits.eg   := vls.io.iss.bits.wvd_eg
-  load_write.bits.data := Fill(dLen / mLen, io.vmu.lresp.bits.data)
+  load_write.bits.data := Fill(dLen / mLen, io.vmu.lresp.bits.data)//写回的vmu的数据
   val load_wmask = Mux(vls.io.iss.bits.use_rmask,
     get_vm_mask(vrf.io.vls.rvm.resp, vls.io.iss.bits.eidx, vls.io.iss.bits.elem_size, dLen),
     ~(0.U(dLenB.W)))
@@ -478,7 +478,7 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
   for (vxs <- flat_vxs) {
     vxs.io.acc_valid := false.B
     if (vxs.usesAcc) {
-      when (vxs.io.vat === vps.io.vat && vxs.io.busy) {
+      when (vxs.io.vat === vps.io.vat && vxs.io.busy && vps.io.busy) {
         vps.io.acc_data.ready := vxs.io.acc_ready
         vxs.io.acc_valid := vps.io.acc_data.valid
         when (vxs.io.iss.fire && vxs.io.iss.bits.tail) {
