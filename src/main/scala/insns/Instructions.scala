@@ -184,6 +184,7 @@ object FRDIV     extends OPFInstruction    { val props = Seq(F6(OPFFunct6.frdiv)
 object FSQRT_V   extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary1)  , F3(VectorConsts.OPFVV), RS1( 0.U(5.W)), FPSwapVdV2.N, FPAdd.N, FPMul.N) }
 object FRSQRT7_V extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary1)  , F3(VectorConsts.OPFVV), RS1( 4.U(5.W)), FPSwapVdV2.N) }
 object FREC7_V   extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary1)  , F3(VectorConsts.OPFVV), RS1( 5.U(5.W)), FPSwapVdV2.N) }
+object FEXP2_V   extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary1)  , F3(VectorConsts.OPFVV), RS1( 8.U(5.W)), FPSwapVdV2.N, FPAdd.N, FPMul.N) }
 object FCLASS_V  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary1)  , F3(VectorConsts.OPFVV), RS1(16.U(5.W)), FPSwapVdV2.N, FPAdd.N, FPMul.N, FPSpecRM(1.U(3.W))) }
 
 object FMIN      extends OPFInstruction    { val props = Seq(F6(OPFFunct6.fmin)     , FPComp.Y, FPCompMin.Y, FPAdd.N, FPMul.N, FPSpecRM(0.U(3.W))) }

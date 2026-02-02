@@ -173,6 +173,7 @@ object VXFunctionalUnitGroups {
   )
   def fpMisc = Seq(
     FPDivSqrtFactory,
+    FPSFuncFactory,
     FPCmpFactory,
     FPConvFactory
   )
