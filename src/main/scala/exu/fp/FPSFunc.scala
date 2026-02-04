@@ -10,7 +10,78 @@ import chisel3.util.experimental.decode._
 import saturn.common._
 import saturn.insns._
 
+class Exp2LUT64 extends Module {
+  val io = IO(new Bundle {
+    val idx  = Input(UInt(6.W))
+    val y0   = Output(UInt(24.W)) // Q1.23
+    val y1   = Output(UInt(24.W))
+  })
 
+  val table = VecInit((0 until 65).map { i =>
+    val v = math.pow(2.0, i.toDouble / 64.0)
+    (v * (math.pow(2.0, 23))).toInt.U(24.W)
+  })
+
+  io.y0 := table(io.idx)
+  io.y1 := table(io.idx + 1.U)
+}
+
+class LinearInterp extends Module {
+  val io = IO(new Bundle {
+    val y0    = Input(UInt(24.W)) // Q1.23
+    val y1    = Input(UInt(24.W))
+    val alpha = Input(UInt(17.W)) // [0,1)
+    val out   = Output(UInt(24.W))
+  })
+
+  val diff = io.y1 - io.y0                // Q1.23
+  val prod = diff * io.alpha              // Q1.23 * Q0.17 = Q1.40
+  val interp = io.y0 + (prod >> 17)        // back to Q1.23
+
+  io.out := interp
+}
+
+class FP32Exp2Interp extends Module {
+  val io = IO(new Bundle {
+    val in  = Input(UInt(32.W))
+    val out = Output(UInt(32.W))
+  })
+
+  val sign = io.in(31)
+  val exp  = io.in(30,23)
+  val frac = io.in(22,0)
+
+  // ---------- FP32 → Q8.16 ----------
+  val mant = Cat(1.U(1.W), frac)                 // 1.xxx
+  val e = exp.asSInt - 127.S
+  val fixed = Mux(e > 0.S, (mant.asSInt << e.asUInt)(31,0), (mant.asSInt >> (-e).asUInt)(31,0))
+
+  val I = fixed(31,23).asSInt
+  val F = fixed(22,0)
+
+  // ---------- 插值索引 ----------
+  val Fh = F(22,17)  // 6 bit
+  val Fl = F(16,0)    // 17 bit
+
+  val lut = Module(new Exp2LUT64)
+  lut.io.idx := Fh
+
+  val interp = Module(new LinearInterp)
+  interp.io.y0    := lut.io.y0
+  interp.io.y1    := lut.io.y1
+  interp.io.alpha := Fl
+
+  // ---------- FP32 pack ----------
+  val outExp = (127.S + I).asUInt
+
+  val outMant = (interp.io.out * lut.io.y0) >> 23 // Q1.23 * Q1.23 >> 23 = Q1.23
+
+  io.out := Cat(
+    0.U(1.W),
+    outExp(7,0),
+    outMant(22,0)
+  )
+}
 
 class VEXP2FAKE(implicit p: Parameters) extends FPUModule()(p) {
   val io = IO(new Bundle {
