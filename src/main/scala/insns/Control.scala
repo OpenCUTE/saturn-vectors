@@ -33,7 +33,7 @@ object UsesGatherUnit    extends NDefaultInstructionField
 object ZextImm5          extends NDefaultInstructionField
 object Slide             extends NDefaultInstructionField
 object PipelinedExecution extends XDefaultInstructionField
-object PipelineStagesMinus1 extends XDefaultInstructionField { override val width: Int = 3 }
+object PipelineStagesMinus1 extends XDefaultInstructionField { override val width: Int = 5 }  // origin is 3
 case class FUSel(w: Int) extends XDefaultInstructionField { override val width: Int = w }
 
 // Execute Sequencer control

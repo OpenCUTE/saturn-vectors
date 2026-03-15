@@ -202,7 +202,7 @@ class ExecuteMicroOp(nFUs: Int)(implicit p: Parameters) extends CoreBundle()(p) 
   val acc_ew   = Bool()
 
   val iterative = Bool()
-  val pipe_depth = UInt(3.W)
+  val pipe_depth = UInt(5.W)    // origin is 3
 
   val wvd_eg   = UInt(log2Ceil(egsTotal).W)
 
