@@ -638,13 +638,15 @@ class VEXP2FAKE(implicit p: Parameters) extends FPUModule()(p) {
 
 case object FPSFuncFactory extends FunctionalUnitFactory {
   def insns = Seq(
-    FEXP2_V
-  ).map(_.restrictSEW(1,2,3)).flatten.map(_.pipelined(17))
+    FEXP2_V,
+    FSIN_V,
+    FCOS_V
+  ).map(_.restrictSEW(1,2,3)).flatten.map(_.pipelined(8))
 
   def generate(implicit p: Parameters) = new FPSFuncPipe()(p)
 }
 
-class FPSFuncPipe(implicit p : Parameters) extends PipelinedFunctionalUnit(17)(p) with HasFPUParameters {
+class FPSFuncPipe(implicit p : Parameters) extends PipelinedFunctionalUnit(8)(p) with HasFPUParameters {
   val supported_insns = FPSFuncFactory.insns
   io.set_vxsat := false.B
 
@@ -673,15 +675,21 @@ class FPSFuncPipe(implicit p : Parameters) extends PipelinedFunctionalUnit(17)(p
 //     op,
 //     supported_insns)
 
-  val exp2_op = op.rs1 === 8.U
+  val special_func = op.rs1 === 8.U || op.rs1 === 10.U || op.rs1 === 11.U
+
+  val sfu_op = MuxLookup(op.rs1, 0.U(3.W)) (Seq(
+    8.U         -> SFUOp.EXP2,
+    10.U        -> SFUOp.SIN,
+    11.U        -> SFUOp.COS
+  ))
 
   // val outexc = Wire(Vec(nTandemFMA, UInt(5.W)))
   val out = Wire(Vec(nTandemFMA, UInt(32.W)))
-  val exp2outValid = Wire(Vec(nTandemFMA, Bool()))
+  val sfu_outvalid = Wire(Vec(nTandemFMA, Bool()))
 
   val pipe_out = (0 until nTandemFMA).map {i =>
 
-    val exp2_opensource = Module(new EXP2FP32)
+    val sfu_opensource = Module(new SFU)
 
     // val exp2 = Module(new VEXP2FAKE)
 
@@ -690,29 +698,26 @@ class FPSFuncPipe(implicit p : Parameters) extends PipelinedFunctionalUnit(17)(p
     val iss_fire_pipe = Reg(Bool())
     iss_fire_pipe := io.iss.valid
 
-	exp2_opensource.io.in.valid := iss_fire_pipe && exp2_op
-    exp2_opensource.io.in.bits.in := Mux(valid && exp2_op, vec_rvs2(i), 0.U)
-    exp2_opensource.io.in.bits.rm := op.frm
-    exp2_opensource.io.out.ready := true.B
+	  sfu_opensource.io.in.valid := iss_fire_pipe && special_func
+    sfu_opensource.io.in.bits.x := Mux(valid && special_func, vec_rvs2(i), 0.U)
+    sfu_opensource.io.in.bits.op := sfu_op
+    sfu_opensource.io.out.ready := true.B
 
-    // exp2.io.in_valid := iss_fire_pipe && exp2_op
-    // exp2.io.rvs2_input := Mux(valid && exp2_op, rvs2_bits, 0.U)
-
-    val exp2_out_valid = exp2_opensource.io.out.valid
-    val exp2_out = exp2_opensource.io.out.bits.out
+    val sfu_out_valid = sfu_opensource.io.out.valid
+    val sfu_out = sfu_opensource.io.out.bits.result
 
     // val elemout = Mux1H(
     //   Seq(vfclass_inst, vfrsqrt7_inst, vfrec7_inst, divsqrt_valid),
     //   Seq(gen_vfclass, recSqrt7.io.out, rec7.io.out, divsqrt_reg)
     // )(63,0)
 
-    // outexc(i) := Mux(exp2_out_valid, exp2.io.exc,
+    // outexc(i) := Mux(sfu_out_valid, exp2.io.exc,
     //       0.U)
-    exp2outValid(i) := exp2_out_valid
-    out(i) := exp2_out
+    sfu_outvalid(i) := sfu_out_valid
+    out(i) := sfu_out
   }
 
-  io.set_fflags.valid := exp2outValid.asUInt.andR
+  io.set_fflags.valid := sfu_outvalid.asUInt.andR
   io.set_fflags.bits := 0.U.asTypeOf(io.set_fflags.bits)
 
   io.scalar_write.valid := false.B
