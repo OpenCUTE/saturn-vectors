@@ -206,7 +206,7 @@ object FREDMAX   extends OPFInstruction    { val props = Seq(F6(OPFFunct6.fredma
 object FCVT_SGL  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b00???")), FPAdd.N, FPMul.N) }
 object FCVT_WID  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b01???")), Wide2VD.Y, FPAdd.N, FPMul.N) }
 object FCVT_NRW  extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b10???")), Wide2VD.N, Wide2VS2.Y, FPAdd.N, FPMul.N) }
-object FCVT_QUANT extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b11???")), Wide2VD.N, Wide2VS2.Y, FPAdd.N, FPMul.N) }
+object FCVT_QUANT8 extends VectorInstruction { val props = Seq(F6(OPFFunct6.funary0), F3(VectorConsts.OPFVV), RS1(BitPat("b111??")), Wide2VD.N, Wide2VS2.N, Quant8.Y, FPAdd.N, FPMul.N) }
 
 object SLIDEUP     extends OPIInstruction    { val props = Seq(F6(OPIFunct6.slideup)    , UsesGatherUnit.Y, ReadsVS2.N, Slide.Y) }
 object SLIDEDOWN   extends OPIInstruction    { val props = Seq(F6(OPIFunct6.slidedown)  , UsesGatherUnit.Y, ReadsVS2.N, Slide.Y) }

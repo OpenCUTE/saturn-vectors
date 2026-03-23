@@ -76,5 +76,19 @@ class SaturnShuttleUnit(implicit p: Parameters) extends ShuttleVectorUnit()(p) w
     vu.io.fp_req.ready := false.B
     vu.io.fp_resp.valid := false.B
     vu.io.fp_resp.bits := DontCare
+
+    // performance counters
+    val time_stamp = RegInit(0.U(40.W))
+      time_stamp := time_stamp + 1.U
+
+    if (vParams.enablePerfCounter) {
+      printf("[Saturn_VPU_perf %d] %x %x %x  \n", 
+        time_stamp,
+        vu.io.vxu_busy,
+        vmu.io.busy,
+        io.backend_busy
+      )
+    }
+
   }
 }

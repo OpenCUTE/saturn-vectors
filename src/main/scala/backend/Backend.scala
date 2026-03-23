@@ -19,6 +19,8 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
 
     val busy = Output(Bool())
 
+    val vxu_busy = Output(Bool())     // 计算部件忙，只用于性能计数
+
     val index_access = new VectorIndexAccessIO
     val mask_access = new VectorMaskAccessIO
 
@@ -118,12 +120,13 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     issq.io.enq.bits.wvd   := false.B
     issq.io.enq.bits.scalar_to_vd0 := false.B
     issq.io.enq.bits.rs1_is_rs2 := false.B
+    issq.io.enq.bits.quant8 := false.B
   }
 
   val dis_ctrl = Wire(new VectorDecodedControl(all_supported_insns, Seq(
     Reduction, Wide2VD, Wide2VS2, WritesAsMask,
     ReadsVS1AsMask, ReadsVS2AsMask, ReadsVS1, ReadsVS2, ReadsVD,
-    VMBitReadsVM, AlwaysReadsVM, WritesVD, WritesScalar, ScalarToVD0
+    VMBitReadsVM, AlwaysReadsVM, WritesVD, WritesScalar, ScalarToVD0, Quant8
   ))).decode(vdq.io.deq.bits)
 
   // Load sequencer
@@ -158,6 +161,7 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
     vxissq.io.enq.bits.wvd := !dis_ctrl.bool(WritesScalar)
     vxissq.io.enq.bits.scalar_to_vd0 := dis_ctrl.bool(ScalarToVD0)
     vxissq.io.enq.bits.reduction := dis_ctrl.bool(Reduction)
+    vxissq.io.enq.bits.quant8 := dis_ctrl.bool(Quant8)
   }
 
   // ======================================
@@ -534,4 +538,6 @@ class VectorBackend(implicit p: Parameters) extends CoreModule()(p) with HasVect
   val scalar_write_arb = Module(new Arbiter(new ScalarWrite, flat_vxus.size))
   vxus.flatten.map(_.io.scalar_write).zip(scalar_write_arb.io.in).foreach { case (i,o) => o <> i }
   io.scalar_resp <> scalar_write_arb.io.out
+
+  io.vxu_busy := vxus.flatten.map(_.io.busy).asUInt.orR
 }

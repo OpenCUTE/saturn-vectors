@@ -14,7 +14,8 @@ case object FPConvFactory extends FunctionalUnitFactory {
   def insns = Seq(
     FCVT_SGL.restrictSEW(1,2,3),
     FCVT_NRW.restrictSEW(1,2),
-    FCVT_WID.restrictSEW(0,1,2)
+    FCVT_WID.restrictSEW(0,1,2),
+    FCVT_QUANT8.restrictSEW(0)
   ).flatten.map(_.pipelined(3))
   def generate(implicit p: Parameters) = new FPConvPipe()(p)
 }
@@ -28,6 +29,8 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
     val in = Input(UInt(64.W))
     val in_eew = Input(UInt(2.W))
     val widen = Input(Bool())
+    val quante4m3 = Input(Bool())
+    val quante5m2 = Input(Bool())
     val narrow = Input(Bool())
     val signed = Input(Bool())
     val frm = Input(UInt(2.W))
@@ -94,6 +97,7 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
   val s1_f2i = RegEnable(io.f2i, io.valid)
   val s1_widen = RegEnable(io.widen, io.valid)
   val s1_narrow = RegEnable(io.narrow, io.valid)
+  val s1_quante4m3 = RegEnable(io.quante4m3, io.valid)
   val s1_valid = RegNext(io.valid, false.B)
 
   d2i(0).io.outW := (s1_out_eew === 3.U) ## (s1_out_eew === 2.U) ## (s1_out_eew === 1.U)
@@ -140,6 +144,7 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
   val s2d = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.D.exp, FType.D.sig)))
   val s2h = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.H.exp, FType.H.sig)))
   val d2s = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.D.exp, FType.D.sig, FType.S.exp, FType.S.sig)))
+  val s2e4m3 = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.E4M3.exp, FType.E4M3.sig)))
 
   h2s(0).io.in := RegEnable(raw2rec(FType.H, raw16(0)), io.valid)
   h2s(1).io.in := RegEnable(raw2rec(FType.H, raw16(2)), io.valid)
@@ -147,12 +152,14 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
   s2h(0).io.in := RegEnable(raw2rec(FType.S, raw32(0)), io.valid)
   s2h(1).io.in := RegEnable(raw2rec(FType.S, raw32(1)), io.valid)
   d2s(0).io.in := RegEnable(raw2rec(FType.D, raw64(0)), io.valid)
+  s2e4m3(0).io.in := RegEnable(raw2rec(FType.S, raw32(0)), io.valid)
+  s2e4m3(1).io.in := RegEnable(raw2rec(FType.S, raw32(1)), io.valid)
 
-  (h2s ++ s2d ++ s2h ++ d2s).foreach { f2f =>
+  (h2s ++ s2d ++ s2h ++ d2s ++ s2e4m3).foreach { f2f =>
     f2f.io.roundingMode := s1_frm
     f2f.io.detectTininess := hardfloat.consts.tininess_afterRounding
   }
-  (s2h ++ d2s).foreach { f2f =>
+  (s2h ++ d2s ++ s2e4m3).foreach { f2f =>
     f2f.io.roundingMode := Mux(s1_rto, "b110".U, s1_frm)
   }
 
@@ -182,15 +189,18 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
   val h2s_out = h2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val d2s_out = d2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val s2h_out = s2h.map(f => RegEnable(FType.H.ieee(f.io.out), s1_valid))
+  val s2e4m3_out = s2e4m3.map(f => RegEnable(FType.E4M3.ieee(f.io.out), s1_valid))
   val s2d_exc = s2d.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val h2s_exc = h2s.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val d2s_exc = d2s.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val s2h_exc = s2h.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
+  val s2e4m3_exc = s2e4m3.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
 
   val s2_i2f = RegEnable(s1_i2f, s1_valid)
   val s2_f2i = RegEnable(s1_f2i, s1_valid)
   val s2_widen = RegEnable(s1_widen, s1_valid)
   val s2_narrow = RegEnable(s1_narrow, s1_valid)
+  val s2_quante4m3 = RegEnable(s1_quante4m3, s1_valid)
   val s2_out_eew = RegEnable(s1_out_eew, s1_valid)
 
   when (s2_i2f) {
@@ -236,6 +246,10 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
       out := VecInit(s2h_out.map(o => 0.U(16.W) ## o)).asUInt
       for (i <- 0 until 8) { exc(i) := s2h_exc(i/4) }
     }
+    when (s2_quante4m3) {
+      out := VecInit(s2e4m3_out.map(o => 0.U(24.W) ## o)).asUInt
+      for (i <- 0 until 8) { exc(i) := s2e4m3_exc(i/4) }
+    }
   }
 }
 
@@ -246,8 +260,9 @@ class FPConvPipe(implicit p: Parameters) extends PipelinedFunctionalUnit(3)(p) w
   io.stall := false.B
 
   val rs1 = io.pipe(0).bits.rs1
-  val ctrl_widen = rs1(3)
-  val ctrl_narrow = rs1(4)
+  val ctrl_widen = rs1(3) && !rs1(4)
+  val ctrl_narrow = rs1(4) && !rs1(3)
+  val ctrl_quant8 = rs1(4) && rs1(3) && rs1(2) // only valid for quant8, ignored otherwise
   val ctrl_signed = rs1(0)
   val ctrl_i2f = !rs1(2) && rs1(1)
   val ctrl_f2i = (!rs1(2) && !rs1(1)) || (rs1(2) && rs1(1))
@@ -271,6 +286,8 @@ class FPConvPipe(implicit p: Parameters) extends PipelinedFunctionalUnit(3)(p) w
 
     c.io.in_eew := rvs2_eew
     c.io.widen := ctrl_widen
+    c.io.quante4m3 := ctrl_quant8 && !rs1(0)
+    c.io.quante5m2 := ctrl_quant8 && rs1(0)
     c.io.narrow := ctrl_narrow
     c.io.signed := ctrl_signed
     c.io.frm := io.pipe(0).bits.frm
@@ -284,8 +301,16 @@ class FPConvPipe(implicit p: Parameters) extends PipelinedFunctionalUnit(3)(p) w
   val exc = Wire(Vec(dLenB, UInt(FPConstants.FLAGS_SZ.W)))
 
   val s2_ctrl_narrow = io.pipe(2).bits.rs1(4)
+  val s2_ctrl_quant8 = io.pipe(2).bits.rs1(4) && io.pipe(2).bits.rs1(3) && io.pipe(2).bits.rs1(2)
   val s2_vd_eew = io.pipe(2).bits.vd_eew
-  when (s2_ctrl_narrow) {
+  when (s2_ctrl_quant8) {
+    // quant8 has a different packing format, so handle it separately
+    val bits = VecInit(conv_blocks.map(_.io.out)).asUInt
+    out := Fill(4, (VecInit(bits.asTypeOf(Vec(dLenB , UInt(8.W))).grouped(4).map(_.head).toSeq).asUInt))
+    val excs = VecInit(conv_blocks.map(_.io.exc).flatten)
+    val exc_out = VecInit(excs.grouped(4).map(_.take(1)).flatten.toSeq)
+    exc := VecInit(Seq(exc_out, exc_out, exc_out, exc_out).flatten)
+  } .elsewhen (s2_ctrl_narrow) {
     val bits = VecInit(conv_blocks.map(_.io.out)).asUInt
     val out8  = VecInit(bits.asTypeOf(Vec(dLenB     , UInt( 8.W))).grouped(2).map(_.head).toSeq).asUInt
     val out16 = VecInit(bits.asTypeOf(Vec(dLenB >> 1, UInt(16.W))).grouped(2).map(_.head).toSeq).asUInt

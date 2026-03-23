@@ -119,7 +119,7 @@ class ExecuteSequencer(supported_insns: Seq[VectorInstruction], maxPipeDepth: In
       (!dis_inst.wvd || dis_inst.writes_mask)
     )
     val dis_vs1_eew = WireInit((dis_inst.vconfig.vtype.vsew + (dis_inst.reduction && dis_inst.wide_vd))(1,0))
-    val dis_vs2_eew = WireInit((dis_inst.vconfig.vtype.vsew + dis_inst.wide_vs2)(1,0))
+    val dis_vs2_eew = WireInit(Mux(dis_inst.quant8, (dis_inst.vconfig.vtype.vsew + 2.U)(1,0), (dis_inst.vconfig.vtype.vsew + dis_inst.wide_vs2)(1,0)))
     val dis_vs3_eew = WireInit((dis_inst.vconfig.vtype.vsew + dis_inst.wide_vd)(1,0))
     val dis_vd_eew  = WireInit((dis_inst.vconfig.vtype.vsew + dis_inst.wide_vd)(1,0))
     val dis_incr_eew = Seq(

@@ -25,6 +25,7 @@ object ScalarToVD0       extends NDefaultInstructionField
 object Reduction         extends NDefaultInstructionField
 object Wide2VD           extends NDefaultInstructionField
 object Wide2VS2          extends NDefaultInstructionField
+object Quant8            extends NDefaultInstructionField
 object WritesAsMask      extends NDefaultInstructionField
 object ReadsVS1AsMask    extends NDefaultInstructionField
 object ReadsVS2AsMask    extends NDefaultInstructionField
