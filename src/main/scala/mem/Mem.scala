@@ -6,6 +6,8 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.util._
 import freechips.rocketchip.tile._
+import cute.trace.{CUTETraceContext, CUTETraceParams, CUTETracePrintMode}
+import cute.trace.generated.{CUTETrace, CUTETraceIds}
 import saturn.common._
 
 class LSIQEntry(implicit p: Parameters) extends CoreBundle()(p) with HasVectorParams {
@@ -157,6 +159,18 @@ class VectorMemUnit(sgSize: Option[BigInt] = None)(implicit p: Parameters) exten
   val siq_sss_fire = Wire(Bool())
   val siq_sas_fire = Wire(Bool())
   val siq_deq_fire = Wire(Bool())
+
+  val vectorTraceCycle = RegInit(0.U(64.W))
+  vectorTraceCycle := vectorTraceCycle + 1.U
+  implicit val traceCtx: CUTETraceContext = CUTETraceContext(
+    cycle = vectorTraceCycle,
+    params = CUTETraceParams(
+      enable = true,
+      printMode = CUTETracePrintMode.Compact,
+      enabledCategories = Set(CUTETraceIds.Category.vector_loadstore)
+    )
+  )
+  val vectorStoreTaskCount = RegInit(0.U(16.W))
 
   val siq_enq_ready = !siq_valids(siq_enq_ptr)
   val siq_sss_valid = !siq_sss(siq_sss_ptr) && siq_valids(siq_sss_ptr)
@@ -407,6 +421,16 @@ class VectorMemUnit(sgSize: Option[BigInt] = None)(implicit p: Parameters) exten
 
   sgas.foreach { sgas =>
     when (maskindex_scatter && sgas.io.valid && sgas.io.done) { siq_deq_fire := true.B }
+  }
+
+  when (store_req.fire) {
+    CUTETrace.VectorStore.storeData(
+      cond = true.B,
+      task_count = vectorStoreTaskCount,
+      vaddr = store_req.bits.addr,
+      data = store_req.bits.data
+    )
+    vectorStoreTaskCount := vectorStoreTaskCount + 1.U
   }
 
   if (vParams.latencyInject) {
