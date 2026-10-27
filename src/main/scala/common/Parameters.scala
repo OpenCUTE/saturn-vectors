@@ -172,8 +172,7 @@ object VXFunctionalUnitGroups {
     SIMDFPFMAFactory(pipeDepth, elementwiseFP64)
   )
   def fpMisc = Seq(
-    FPDivSqrtPipeFactory,
-    FPSFuncFactory,
+    FPDivSqrtFactory,
     FPCmpFactory,
     FPConvFactory
   )

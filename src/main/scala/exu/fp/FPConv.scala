@@ -144,7 +144,9 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
   val s2d = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.D.exp, FType.D.sig)))
   val s2h = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.H.exp, FType.H.sig)))
   val d2s = Seq.fill(1)(Module(new hardfloat.RecFNToRecFN(FType.D.exp, FType.D.sig, FType.S.exp, FType.S.sig)))
-  val s2e4m3 = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, FType.E4M3.exp, FType.E4M3.sig)))
+  // FType precision includes the hidden bit: E4M3 has precision 4.
+  private val e4m3Type = new FType(4, 4)
+  val s2e4m3 = Seq.fill(2)(Module(new hardfloat.RecFNToRecFN(FType.S.exp, FType.S.sig, e4m3Type.exp, e4m3Type.sig)))
 
   h2s(0).io.in := RegEnable(raw2rec(FType.H, raw16(0)), io.valid)
   h2s(1).io.in := RegEnable(raw2rec(FType.H, raw16(2)), io.valid)
@@ -189,7 +191,7 @@ class FPConvBlock(implicit p: Parameters) extends CoreModule()(p) with HasFPUPar
   val h2s_out = h2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val d2s_out = d2s.map(f => RegEnable(FType.S.ieee(f.io.out), s1_valid))
   val s2h_out = s2h.map(f => RegEnable(FType.H.ieee(f.io.out), s1_valid))
-  val s2e4m3_out = s2e4m3.map(f => RegEnable(FType.E4M3.ieee(f.io.out), s1_valid))
+  val s2e4m3_out = s2e4m3.map(f => RegEnable(e4m3Type.ieee(f.io.out), s1_valid))
   val s2d_exc = s2d.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val h2s_exc = h2s.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
   val d2s_exc = d2s.map(f => RegEnable(f.io.exceptionFlags, s1_valid))
