@@ -14,6 +14,7 @@ import saturn.backend.{VectorBackend}
 import saturn.mem.{TLSplitInterface, SGTLInterface, VectorMemUnit}
 import saturn.frontend.{VectorDispatcher}
 import shuttle.common._
+import freechips.rocketchip.resources.{DeviceSnippet, Description, ResourceInt, ResourceString}
 
 
 class SaturnShuttleUnit(implicit p: Parameters) extends ShuttleVectorUnit()(p) with HasVectorParams with HasCoreParameters {
@@ -24,6 +25,18 @@ class SaturnShuttleUnit(implicit p: Parameters) extends ShuttleVectorUnit()(p) w
 
   val tl_if = LazyModule(new TLSplitInterface)
   atlNode := TLBuffer(vParams.tlBuffer) := TLWidthWidget(mLenB) := tl_if.node
+  private val softwareContract = new DeviceSnippet {
+    def describe(): Description = Description(s"saturn-contract-${tileParams.tileId}", Map(
+      "compatible" -> Seq(ResourceString("opencute,saturn-contract-v1")),
+      "opencute,hart-id" -> Seq(ResourceInt(tileParams.tileId)),
+      "opencute,client" -> Seq(ResourceString("rvv")),
+      "opencute,access-ranges" -> freechips.rocketchip.resources.ClientMemoryResources.ranges(tl_if.edge.manager.managers),
+      "opencute,contracts" -> Seq(ResourceString("saturn_quiescent_checkpoint_v1")),
+      "opencute,trace-ports" -> Seq(ResourceInt(1), ResourceInt(0), ResourceInt(1), ResourceInt(1)),
+      "opencute,beat-bytes" -> Seq(ResourceInt(mLenB)),
+      "opencute,progress-period" -> Seq(ResourceInt(256))
+    ))
+  }
 
   val sg_if = sgNode.map { n =>
     val sg_if = LazyModule(new SGTLInterface)

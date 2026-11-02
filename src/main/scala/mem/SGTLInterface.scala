@@ -14,7 +14,7 @@ import saturn.common._
 class SGTLInterface(implicit p: Parameters) extends LazyModule()(p) with HasCoreParameters with HasVectorParams {
 
   require(vParams.vsgBuffers >= 2)
-  val accessors = Seq.tabulate(vParams.vsgPorts) { i => LazyModule(new TLInterface(sgmemTagBits)) }
+  val accessors = Seq.tabulate(vParams.vsgPorts) { i => LazyModule(new TLInterface(sgmemTagBits, tracePort = 2 + i)) }
   val identityNode = TLEphemeralNode()
   accessors.foreach { a => identityNode := TLBuffer(BufferParams(vParams.vsgBuffers), BufferParams.none) := a.node }
 
